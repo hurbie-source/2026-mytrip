@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 旅遊計畫表</title>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --bg-main: #fffdf5; 
+            --text-brown: #4b3621;
+            --pudding-yellow: #ffe66d;
+            --beret-brown: #5c4033;
+            
+            /* 狀態顏色 */
+            --work-bg: #ffffff;
+            --work-text: #ddd; 
+            --off-bg: #e6d2c1; 
+            --off-text: #8c7365;
+            --leave-bg: #ffe66d; 
+            --leave-text: #4b3621;
+            --trip-bg: #a8e6cf; 
+            --trip-text: #2d6a4f;
+            --preview-bg: rgba(255, 230, 109, 0.5);
+        }
+
+        body {
+            font-family: "Microsoft JhengHei", "微軟正黑體", sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-brown);
+            margin: 0;
+            
+            /* --- 關鍵修改：增加底部內距 (Padding) --- */
+            /* 預留 100px 空間給 Tiiny Host 的 Banner，防止內容被遮擋 */
+            padding: 20px 20px 100px 20px;
+            
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none; 
+        }
+
+        /* --- 上傳區域樣式 (新) --- */
+        .mascot-container {
+            position: relative;
+            width: 220px; 
+            height: 180px; /* 高度固定 */
+            margin: 10px auto 10px auto; 
+            z-index: 5;
+            display: flex;
+            justify-content: center;
+            align-items: center; /* 垂直置中 */
+            cursor: pointer; 
+            transition: transform 0.1s;
+        }
+
+        .mascot-container:active { transform: scale(0.98); }
+
+        /* 預設的上傳框 (虛線+Icon) */
+        #upload-placeholder {
+            width: 100%;
+            height: 100%;
+            border: 3px dashed #e0d0c0; /* 虛線邊框 */
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #8c7365;
+            background-color: rgba(255, 255, 255, 0.5);
+            transition: all 0.2s;
+        }
+
+        #upload-placeholder:hover {
+            border-color: var(--text-brown);
+            color: var(--text-brown);
+            background-color: rgba(255, 255, 255, 0.8);
+        }
+
+        /* 上傳後的圖片 */
+        #user-image {
+            max-width: 100%;
+            max-height: 100%;
+            display: none; /* 預設隱藏 */
+            object-fit: contain;
+            filter: drop-shadow(2px 2px 0px rgba(75, 54, 33, 0.1));
+            pointer-events: none;
+        }
+
+        /* SVG Icon 樣式 */
+        .icon-upload {
+            width: 50px;
+            height: 50px;
+            margin-bottom: 10px;
+            opacity: 0.6;
+        }
+
+        /* --- 標題區域 --- */
+        .title-wrapper {
+            margin: 5px 0 15px 0;
+            position: relative;
+            z-index: 10;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h1 {
+            color: var(--text-brown);
+            margin: 0;
+            text-align: center;
+            font-size: 1.8rem;
+            letter-spacing: 2px;
+            outline: none;
+            border-bottom: 1px dashed transparent;
+            transition: border-color 0.2s;
+            cursor: text;
+        }
+        h1:hover, h1:focus { border-bottom: 1px dashed var(--text-brown); }
+
+        .edit-icon { width: 20px; height: 20px; cursor: pointer; opacity: 0.6; transition: opacity 0.2s; }
+        .edit-icon:hover { opacity: 1; }
+
+        /* --- 統計區 --- */
+        .stats-container {
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .stats-box {
+            background: #fff;
+            padding: 10px 25px;
+            border-radius: 50px;
+            border: 3px solid #eee;
+            color: var(--text-brown);
+            font-size: 1rem;
+            font-weight: bold;
+            box-shadow: 0 4px 0px rgba(90, 62, 43, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 120px;
+        }
+        .stats-num { font-size: 1.8rem; font-family: monospace; margin-top: 5px; }
+        .stats-label { font-size: 0.9rem; color: #888; }
+
+        /* --- 控制區 --- */
+        .controls-wrapper {
+            position: sticky;
+            top: 10px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            pointer-events: none; 
+        }
+        .controls-inner {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 25px;
+            border-radius: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid #eee;
+            backdrop-filter: blur(5px);
+            pointer-events: auto;
+        }
+        .button-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center; }
+        .hint-text { font-size: 0.85rem; color: #888; border-top: 1px solid #eee; padding-top: 5px; width: 100%; text-align: center; }
+        .mode-btn { border: 2px solid transparent; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 0.95rem; font-weight: bold; transition: all 0.2s; color: var(--text-brown); display: flex; align-items: center; gap: 6px; }
+        .mode-btn:hover { transform: translateY(-1px); }
+        .mode-btn.active { border-color: var(--text-brown); box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); transform: scale(1.05); }
+        .btn-smart { background-color: var(--leave-bg); }
+        .btn-undo { background-color: #ffe4e1; border: 2px solid #ffb7b2; font-size: 0.9rem;}
+        .btn-download { background-color: var(--text-brown); color: #fff; font-size: 0.9rem;}
+        .divider { width: 1px; height: 20px; background: #ddd; margin: 0 2px; }
+
+        /* --- 月曆區 --- */
+        #capture-area {
+            width: 100%;
+            max-width: 1000px;
+            background-color: var(--bg-main);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border-radius: 20px;
+            margin-top: 10px;
+            cursor: default;
+        }
+        .calendar-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; width: 100%; }
+        .month-card { background: white; border-radius: 12px; padding: 12px; border: 1px solid #eee; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+        .month-title { text-align: center; font-size: 1.1rem; font-weight: bold; margin-bottom: 10px; color: var(--text-brown); border-bottom: 2px solid var(--pudding-yellow); display: inline-block; width: 100%; }
+        .days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+        .day-header { font-size: 0.8rem; color: #999; margin-bottom: 4px; }
+        .day-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; cursor: pointer; border-radius: 50%; font-weight: bold; border: 2px solid transparent; color: var(--text-brown); transition: background 0.1s; }
+        .day-cell:hover { background-color: #fff9db; } 
+        .day-cell.range-preview { background-color: var(--preview-bg) !important; box-shadow: 0 0 0 2px var(--pudding-yellow); z-index: 10; }
+        .day-cell.range-start { animation: pulse 1s infinite; box-shadow: 0 0 0 2px var(--text-brown); }
+        .status-work { color: #ccc; }
+        .status-off { background-color: var(--off-bg); color: var(--off-text); }
+        .status-leave { background-color: var(--leave-bg); color: var(--leave-text); box-shadow: 0 0 0 1px var(--text-brown); }
+        .status-trip { background-color: var(--trip-bg); color: var(--trip-text); box-shadow: 0 0 0 1px var(--text-brown); }
+
+    </style>
+</head>
+<body>
+
+    <div class="controls-wrapper">
+        <div class="controls-inner">
+            <div class="button-row">
+                <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
+
+                <button class="mode-btn btn-smart active" id="btn-smart">✏️ 規劃旅程 (區間)</button>
+                <div class="divider"></div>
+                <button class="mode-btn btn-undo" onclick="undo()" id="btn-undo">↩️ 復原</button>
+                <button class="mode-btn btn-download" onclick="downloadImage()">📷 下載圖片</button>
+            </div>
+            <div class="hint-text">
+                💡 操作：點選「起始日」➜ 再點選「結束日」，系統自動計算請假天數
+            </div>
+        </div>
+    </div>
+    
+    <div id="capture-area">
+        
+        <div class="mascot-container" onclick="document.getElementById('imageInput').click()" title="點擊上傳圖片">
+            <div id="upload-placeholder">
+                <svg class="icon-upload" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                </svg>
+                <span>點擊上傳照片</span>
+            </div>
+            <img id="user-image" src="" alt="User Upload">
+        </div>
+
+        <div class="title-wrapper">
+            <h1 id="page-title" contenteditable="true" oninput="saveTitle()">2026 旅遊計畫表</h1>
+            <svg class="edit-icon" onclick="focusTitle()" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" color="#4b3621">
+                <path d="M21.731 2.269a2.625 2.625 0 00-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 000-3.712zM19.513 8.199l-3.712-3.712-12.15 12.15a5.25 5.25 0 00-1.32 2.214l-.8 2.685a.75.75 0 00.933.933l2.685-.8a5.25 5.25 0 002.214-1.32L19.513 8.2z" />
+            </svg>
+        </div>
+        
+        <div class="stats-container">
+            <div class="stats-box" style="border-color: var(--leave-bg);">
+                <span class="stats-label">需請假 (特休)</span>
+                <span id="count-leave" class="stats-num" style="color: #d35400;">0</span>
+            </div>
+            <div class="stats-box" style="border-color: var(--trip-bg);">
+                <span class="stats-label">旅程總天數</span>
+                <span id="count-total" class="stats-num" style="color: var(--trip-text);">0</span>
+            </div>
+        </div>
+
+        <div class="calendar-container" id="calendar"></div>
+    </div>
+
+    <script>
+        const year = 2026;
+        let currentMode = 'smart'; 
+        const calendarEl = document.getElementById('calendar');
+        const STORAGE_KEY = 'puddingCalendar2026_tiiny_v1'; 
+        const TITLE_STORAGE_KEY = 'puddingCalendar2026_title_v1';
+        
+        let selectionStart = null; 
+        let historyStack = [];
+        const MAX_HISTORY = 20;
+
+        // --- 標題編輯 ---
+        function focusTitle() { document.getElementById('page-title').focus(); }
+        function saveTitle() { localStorage.setItem(TITLE_STORAGE_KEY, document.getElementById('page-title').innerText); }
+        function loadTitle() {
+            const savedTitle = localStorage.getItem(TITLE_STORAGE_KEY);
+            if (savedTitle) document.getElementById('page-title').innerText = savedTitle;
+        }
+
+        // --- 圖片上傳 (修改版) ---
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = document.getElementById('user-image');
+                    const placeholder = document.getElementById('upload-placeholder');
+                    img.src = e.target.result; 
+                    img.style.display = 'block';
+                    placeholder.style.display = 'none'; // 隱藏虛線框
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // --- 日期與假日 ---
+        function getDates(startMonth, startDay, endMonth, endDay) {
+            let dates = [];
+            if (startMonth === endMonth) {
+                for (let d = startDay; d <= endDay; d++) dates.push(`${startMonth}-${d}`);
+            } else {
+                let lastDayOfStartMonth = new Date(year, startMonth, 0).getDate();
+                for (let d = startDay; d <= lastDayOfStartMonth; d++) dates.push(`${startMonth}-${d}`);
+                for (let d = 1; d <= endDay; d++) dates.push(`${endMonth}-${d}`);
+            }
+            return dates;
+        }
+
+        let holidays2026 = [];
+        holidays2026.push('1-1');      
+        holidays2026.push(...getDates(2, 14, 2, 22));    
+        holidays2026.push(...getDates(2, 27, 3, 1));     
+        holidays2026.push(...getDates(4, 3, 4, 6));      
+        holidays2026.push(...getDates(5, 1, 5, 3));      
+        holidays2026.push(...getDates(6, 19, 6, 21));    
+        holidays2026.push(...getDates(9, 25, 9, 28));    
+        holidays2026.push(...getDates(10, 9, 10, 11));   
+        holidays2026.push(...getDates(10, 24, 10, 26));  
+        holidays2026.push(...getDates(12, 25, 12, 27));  
+
+        function initCalendar() {
+            calendarEl.innerHTML = ''; 
+            for (let m = 0; m < 12; m++) { createMonth(m); }
+            loadSavedData(); loadTitle(); updateStats(); saveHistory(); 
+        }
+
+        function createMonth(monthIndex) {
+            const date = new Date(year, monthIndex, 1);
+            const monthName = (monthIndex + 1) + "月"; 
+            const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+            const firstDayIndex = date.getDay();
+            const monthDiv = document.createElement('div'); monthDiv.className = 'month-card';
+            const title = document.createElement('div'); title.className = 'month-title'; title.innerText = monthName; monthDiv.appendChild(title);
+            const grid = document.createElement('div'); grid.className = 'days-grid';
+            ['日', '一', '二', '三', '四', '五', '六'].forEach(d => {
+                const header = document.createElement('div'); header.className = 'day-header'; header.innerText = d; grid.appendChild(header);
+            });
+            for (let i = 0; i < firstDayIndex; i++) { grid.appendChild(document.createElement('div')); }
+            for (let d = 1; d <= daysInMonth; d++) {
+                const cell = document.createElement('div'); cell.className = 'day-cell'; cell.innerText = d;
+                const dateId = `d-${monthIndex}-${d}`; cell.id = dateId; 
+                cell.dataset.dateObj = new Date(year, monthIndex, d).getTime(); 
+                const dateString = `${monthIndex + 1}-${d}`;
+                const currentDayOfWeek = new Date(year, monthIndex, d).getDay();
+                let isHoliday = false;
+                if (holidays2026.includes(dateString) || currentDayOfWeek === 0 || currentDayOfWeek === 6) { isHoliday = true; }
+                cell.dataset.isDefaultHoliday = isHoliday;
+                if (isHoliday) { cell.dataset.status = 'off'; cell.classList.add('status-off'); } 
+                else { cell.dataset.status = 'work'; cell.classList.add('status-work'); }
+                cell.addEventListener('click', () => handleDayClick(cell));
+                cell.addEventListener('mouseenter', () => handleDayHover(cell));
+                grid.appendChild(cell);
+            }
+            monthDiv.appendChild(grid); calendarEl.appendChild(monthDiv);
+        }
+
+        function handleDayClick(cell) {
+            if (!selectionStart) {
+                selectionStart = cell; cell.classList.add('range-start');
+                document.querySelector('.hint-text').innerText = '📍 已選起點，請點選結束日';
+                document.querySelector('.hint-text').style.color = '#d35400';
+            } else {
+                saveHistory(); applySmartRange(selectionStart, cell);
+                selectionStart.classList.remove('range-start'); selectionStart = null; clearPreview();
+                document.querySelector('.hint-text').innerText = '💡 操作：點選「起始日」➜ 再點選「結束日」';
+                document.querySelector('.hint-text').style.color = '#888';
+            }
+        }
+
+        function handleDayHover(cell) {
+            if (selectionStart) {
+                const startTs = parseInt(selectionStart.dataset.dateObj);
+                const currentTs = parseInt(cell.dataset.dateObj);
+                const minTs = Math.min(startTs, currentTs);
+                const maxTs = Math.max(startTs, currentTs);
+                document.querySelectorAll('.day-cell[id]').forEach(d => {
+                    const dTs = parseInt(d.dataset.dateObj);
+                    if (dTs >= minTs && dTs <= maxTs) { d.classList.add('range-preview'); } 
+                    else { d.classList.remove('range-preview'); }
+                });
+            }
+        }
+
+        function clearPreview() { document.querySelectorAll('.range-preview').forEach(el => el.classList.remove('range-preview')); }
+
+        function applySmartRange(startCell, endCell) {
+            const startTs = parseInt(startCell.dataset.dateObj);
+            const endTs = parseInt(endCell.dataset.dateObj);
+            const minTs = Math.min(startTs, endTs);
+            const maxTs = Math.max(startTs, endTs);
+            document.querySelectorAll('.day-cell[id]').forEach(cell => {
+                const cellTs = parseInt(cell.dataset.dateObj);
+                const isDefaultHoliday = cell.dataset.isDefaultHoliday === 'true';
+                if (cellTs >= minTs && cellTs <= maxTs) {
+                    cell.classList.remove('status-work', 'status-off', 'status-leave', 'status-trip');
+                    if (isDefaultHoliday) { cell.classList.add('status-trip'); cell.dataset.status = 'trip'; } 
+                    else { cell.classList.add('status-leave'); cell.dataset.status = 'leave'; }
+                }
+            });
+            updateStats(); saveData();
+        }
+
+        function saveHistory() {
+            const currentSnapshot = {};
+            document.querySelectorAll('.day-cell[id]').forEach(cell => { currentSnapshot[cell.id] = cell.dataset.status; });
+            historyStack.push(JSON.stringify(currentSnapshot));
+            if (historyStack.length > MAX_HISTORY) historyStack.shift();
+        }
+
+        function undo() {
+            if (historyStack.length === 0) return alert("已無步驟可復原");
+            const previousState = JSON.parse(historyStack.pop());
+            for (const [id, status] of Object.entries(previousState)) {
+                const cell = document.getElementById(id);
+                if (cell) {
+                    cell.classList.remove('status-work', 'status-off', 'status-leave', 'status-trip');
+                    cell.classList.add(`status-${status}`);
+                    cell.dataset.status = status;
+                }
+            }
+            if(selectionStart) { selectionStart.classList.remove('range-start'); selectionStart = null; clearPreview(); }
+            updateStats(); saveData();
+        }
+
+        function updateStats() {
+            const leaveCount = document.querySelectorAll('.day-cell[data-status="leave"]').length;
+            const tripCount = document.querySelectorAll('.day-cell[data-status="trip"]').length;
+            document.getElementById('count-leave').innerText = leaveCount;
+            document.getElementById('count-total').innerText = leaveCount + tripCount;
+        }
+
+        function saveData() {
+            const data = {};
+            document.querySelectorAll('.day-cell[id]').forEach(cell => { data[cell.id] = cell.dataset.status; });
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+
+        function loadSavedData() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (!saved) return;
+            try {
+                const data = JSON.parse(saved);
+                for (const [id, status] of Object.entries(data)) {
+                    const cell = document.getElementById(id);
+                    if (cell) {
+                        cell.classList.remove('status-work', 'status-off', 'status-leave', 'status-trip');
+                        cell.classList.add(`status-${status}`);
+                        cell.dataset.status = status;
+                    }
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function downloadImage() {
+            const captureArea = document.getElementById('capture-area');
+            const controls = document.querySelector('.controls-wrapper');
+            const editIcon = document.querySelector('.edit-icon'); 
+            controls.style.visibility = 'hidden'; 
+            if(editIcon) editIcon.style.display = 'none'; 
+            window.scrollTo(0, 0);
+            html2canvas(captureArea, { scale: 2, backgroundColor: '#fffdf5', useCORS: true, allowTaint: true }).then(canvas => {
+                controls.style.visibility = 'visible'; 
+                if(editIcon) editIcon.style.display = 'block';
+                if (canvas.width === 0) return alert('截圖失敗');
+                const link = document.createElement('a'); link.download = '2026_旅遊計畫表.png'; link.href = canvas.toDataURL('image/png'); link.click();
+            }).catch(e => {
+                controls.style.visibility = 'visible'; if(editIcon) editIcon.style.display = 'block'; alert('截圖失敗');
+            });
+        }
+
+        initCalendar();
+    </script>
+</body>
+</html>
